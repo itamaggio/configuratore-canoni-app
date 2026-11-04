@@ -1,0 +1,1 @@
+# configuratore-canoni-app
