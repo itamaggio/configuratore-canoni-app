@@ -1,0 +1,1 @@
+Il file novotecna-logo.jpg è una copia senza modifiche di word/media/image13.jpg del modello DOCX Novotecna B2C fornito dall'utente. Usato esclusivamente per l'interfaccia dell'integrazione richiesta. L'originale resta invariato.
