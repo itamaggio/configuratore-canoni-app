@@ -3,6 +3,22 @@ import assert from 'node:assert/strict';
 import {normalizeAmount, normalizeRow, encodeState, decodeState, documentPayload, requirePortal, placementContext} from '../public/core.mjs';
 
 const row={description:'O&M fotovoltaico',amount:'97,00',unit:'kWp',period:'Annuale',quantity:'10 kWp',duration:'Durata del contratto',start:'Dall’attivazione',notes:'Anticipato'};
+
+test('B2B e B2C conservano gli stessi canoni informativi e tutti gli attributi',()=>{
+ const payloads=[];
+ for(const type of ['B2B','B2C']){
+  const state=decodeState(encodeState(67,[row],{type,templateId:12}),67);
+  assert.equal(state.type,type);assert.equal(state.rows[0].notes,row.notes);
+  payloads.push(documentPayload(67,12,state.rows).values.Canoni);
+ }
+ assert.deepEqual(payloads[0],payloads[1]);
+});
+test('lista vuota e trenta canoni sono ammessi, righe e dati eccessivi vengono rifiutati',()=>{
+ assert.equal(decodeState(encodeState(67,[]),67).rows.length,0);
+ assert.equal(decodeState(encodeState(67,Array.from({length:30},()=>({...row}))),67).rows.length,30);
+ assert.throws(()=>encodeState(67,Array.from({length:31},()=>({...row}))),/30/);
+ assert.throws(()=>encodeState(67,Array.from({length:30},()=>({...row,notes:'x'.repeat(1900)}))),/dimensione/);
+});
 test('normalizza tariffa italiana senza calcolare il corrispettivo',()=>{
  assert.equal(normalizeAmount('1.250,50'),'1250.50');
  assert.equal(normalizeAmount('97'),'97.00');

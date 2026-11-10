@@ -13,7 +13,7 @@ source=root/'public/templates/novotecna-b2c-canoni-test.docx'
 target=root/'public/templates/novotecna-b2c-canoni-native.docx'
 ns={'w':'http://schemas.openxmlformats.org/wordprocessingml/2006/main','wp':'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing','a':'http://schemas.openxmlformats.org/drawingml/2006/main','pic':'http://schemas.openxmlformats.org/drawingml/2006/picture','r':'http://schemas.openxmlformats.org/officeDocument/2006/relationships'}
 W='{'+ns['w']+'}';REL='http://schemas.openxmlformats.org/package/2006/relationships'
-PRINT_WIDTH,PRINT_HEIGHT=2200,900
+PRINT_WIDTH,PRINT_HEIGHT=2200,760
 placeholder=Image.new('RGB',(PRINT_WIDTH,PRINT_HEIGHT),'white');draw=ImageDraw.Draw(placeholder)
 draw.text((40,40),'CANONI NON SINCRONIZZATI - SALVARE NELLA SCHEDA CANONI',fill='#b42318')
 buffer=BytesIO();placeholder.save(buffer,format='PNG');png=buffer.getvalue()
@@ -45,6 +45,21 @@ if signature_pr is None:signature_pr=E.Element(W+'pPr');signature[0].insert(0,si
 keep=signature_pr.find('w:keepNext',ns)
 if keep is None:keep=E.SubElement(signature_pr,W+'keepNext')
 keep.set(W+'val','1')
+# The source switches section between products and notes. Keep the whole offer
+# (including native totals and signature) in the same section before the terms.
+def paragraph_text(p):return ''.join(t.text or '' for t in p.findall('.//w:t',ns))
+section_paragraphs=[p for p in body.findall('w:p',ns) if p.find('w:pPr/w:sectPr',ns) is not None and '{QuoteNumber}' in paragraph_text(p)]
+assert len(section_paragraphs)==1
+terms=[p for p in body.findall('w:p',ns) if paragraph_text(p).strip()=='CONDIZIONI GENERALI DI VENDITA']
+assert len(terms)==1
+offer_end=body[body.index(terms[0])-1]
+assert E.QName(offer_end).localname=='p' and not paragraph_text(offer_end).strip()
+offer_end_pr=offer_end.find('w:pPr',ns)
+if offer_end_pr is None:offer_end_pr=E.Element(W+'pPr');offer_end.insert(0,offer_end_pr)
+assert offer_end_pr.find('w:sectPr',ns) is None
+section=section_paragraphs[0].find('w:pPr/w:sectPr',ns)
+section.getparent().remove(section);offer_end_pr.append(section)
+assert len(tree.findall('.//w:sectPr',ns))==5
 parts['word/document.xml']=E.tostring(tree,xml_declaration=True,encoding='UTF-8',standalone=True)
 rels=E.fromstring(parts['word/_rels/document.xml.rels'])
 E.SubElement(rels,'{'+REL+'}Relationship',Id='rIdCanoniNativePrint',Type=ns['r']+'/image',Target='media/canoni-native-placeholder.png')

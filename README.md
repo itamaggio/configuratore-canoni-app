@@ -42,7 +42,7 @@ In questa configurazione l'app si apre soltanto dal PC che esegue Docker. Il col
 
 ## Prova documentale
 
-Gli strumenti di preparazione e collaudo descritti sotto sono visibili aggiungendo `admin=1` all'URL dell'app. La vista operativa mostra l'editor dei canoni, lo stato di salvataggio e le istruzioni per generare il documento. La separazione visiva non modifica i permessi CRM.
+Gli strumenti di preparazione e collaudo descritti sotto sono visibili aprendo l'app dal menu principale, oppure con `admin=1`. Nella scheda del Preventivo l'operatore vede l'editor, lo stato di salvataggio e il modello nativo da scegliere. La separazione visiva non modifica i permessi CRM.
 
 1. Aprire l'app e scegliere **Prepara applicazione**. Crea, se assente, un campo testo multilinea identificato da `NOVOTECNA_CANONI_V1`, più scheda Canoni e voce nel menu Documento.
 2. Scegliere **Crea preventivo dimostrativo**. Viene creato un nuovo preventivo TEST con due righe prodotto native e due canoni riconoscibili come dati dimostrativi, senza cliente o invio email.
@@ -60,17 +60,19 @@ Bitrix24 apre comunque il pannello dell'estensione, che mostra avanzamento e col
 
 ### Clic diretto sul modello nativo
 
-Sul preventivo **67** è stata collaudata anche la voce **Documento → TEST Novotecna B2C — Canoni nativi**, modello **12**, senza estensione. Il documento finale **69** si apre nel visualizzatore nativo Bitrix24. L'app salva una rappresentazione PNG della tabella in un campo File del preventivo; il modello richiama il campo tramite il testo alternativo di un'immagine segnaposto. Prodotti e totali continuano a usare le mappature CRM originali.
+Sul preventivo **67** è stata collaudata la voce **Documento → TEST Novotecna B2C — Canoni nativi**, modello **12**, senza estensione. Il documento finale del 10 novembre è **74, TEST-CAN-8**, con due canoni completi e 16 pagine. L'app salva una rappresentazione PNG della tabella in un campo File del preventivo; il modello richiama il campo tramite il testo alternativo di un'immagine segnaposto. Prodotti e totali continuano a usare le mappature CRM originali.
 
-L'operatore modifica le voci nell'app e preme **Salva canoni**, che aggiorna JSON e immagine nella stessa chiamata CRM e ne controlla la rilettura; poi seleziona direttamente il modello nel menu Documento. Il campo JSON resta la fonte dei dati. Non è una tabella Word modificabile: nel documento è un'immagine. Il riquadro iniziale di 2200×520 pixel è stato ampliato a **2200×900 pixel**, mantenendo il carattere a 34 px e adeguando il segnaposto DOCX a circa 18,2×7,45 cm. Se il testo supera il riquadro, il salvataggio viene bloccato prima di scrivere nel CRM. Non è qualificata per liste estese o distribuite su più pagine.
+L'operatore modifica le voci nell'app e preme **Salva canoni**, che aggiorna JSON e immagine nella stessa chiamata CRM e ne controlla la rilettura; poi seleziona direttamente il modello nel menu Documento. Il campo JSON resta la fonte dei dati. Nel documento la tabella è un'immagine. Il riquadro finale è **2200×760 pixel**, stampato a circa **18,2×6,29 cm**, con carattere a 34 px. La sezione dell'offerta include note, riepilogo e firma prima delle condizioni generali: questo conserva intestazione, tabella e totali correttamente impaginati. Se il testo supera il riquadro, il salvataggio viene bloccato prima di scrivere nel CRM. La stampa resta a pagina singola.
 
-**Stato dell'ultima modifica:** entrambi i canoni completi sono stati salvati e riletti sul preventivo 67; il test di regressione riproduce il precedente errore e passa con il riquadro ampliato. Il caricamento del DOCX aggiornato nel modello 12 e la generazione/verifica del nuovo PDF nativo sono **ancora da completare**. Il collaudo del documento 69 citato sopra riguarda il precedente modello con un solo canone e non convalida questa modifica.
+**Verifica completata il 10 novembre:** documento 74 generato dal menu nativo, scaricato e reso in immagini. Entrambi i canoni e tutti i totali sono a pagina 8; le pagine 1–7 e 10–16 sono identiche al precedente documento 69. La risincronizzazione di immagine e modello mediante il comando amministrativo ha risolto le proporzioni rimaste vecchie dopo il primo caricamento manuale. Il [resoconto con scenari e limiti](docs/collaudo-completo-2026-11-10.md) distingue il collaudo B2C, le prove locali e le verifiche ancora necessarie prima della produzione.
 
 La preparazione amministrativa **Prepara modello per clic nativo** è limitata al caso 67. Non modifica i modelli 10 e 11 e non cambia permessi o impostazioni globali. Dettagli e limiti nel [collaudo del clic nativo](docs/collaudo-clic-nativo-2026-11-09.md).
 
 ## Salvataggio e limiti
 
 I canoni sono salvati come JSON nel campo del singolo Preventivo. Non vengono create righe prodotto per i canoni. L'app verifica schema, ID preventivo e rilettura del valore dopo il salvataggio; rileva anche modifiche rispetto alla versione caricata. Non è implementato un blocco transazionale fra salvataggi simultanei.
+
+L'operatore deve completare **Aggiungi/Aggiorna canone** e poi premere **Salva canoni**. Non è presente autosalvataggio delle bozze. La compilazione aperta è protetta dal cambio voce e dall'eliminazione; l'ultima rimozione può essere annullata prima del salvataggio. I documenti già generati restano copie della precedente emissione.
 
 Il prototipo accetta fino a 30 righe e 45 KB di dati. Sono limiti applicativi, non una certificazione dei limiti del portale. Le tariffe sono normalizzate e formattate, senza moltiplicazioni per quantità o somme.
 

@@ -5,5 +5,7 @@ __pycache__/
 artifacts/
 .taste-skill/
 *.log
-/public/templates/*.docx
+*.docx
+*.pdf
 /public/assets/novotecna-logo.jpg
+.impeccable/hook.cache.json

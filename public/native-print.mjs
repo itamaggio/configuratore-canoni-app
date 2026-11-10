@@ -7,8 +7,8 @@ export function nativeTableContent(rows){
 }
 export function renderNativeTable(rows){
  // Keep the aspect ratio in sync with the placeholder in build_native_template.py.
- // A 900px frame preserves the print font size for the complete two-service offer.
- const width=2200,height=900,padding=18,lineHeight=42,fontSize=34;
+ // The compact frame keeps both full services and the native totals on the offer page.
+ const width=2200,height=760,padding=18,lineHeight=42,fontSize=34;
  const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
  const ctx=canvas.getContext('2d');ctx.font=`${fontSize}px Arial`;ctx.textBaseline='top';
  const widths=[540,260,330,320,750];
@@ -31,7 +31,7 @@ export function renderNativeTable(rows){
  if(!contents.length)contents.push([['Nessun canone previsto'],['—'],['—'],['—'],['—']]);
  const heights=contents.map(c=>Math.max(...c.map(a=>a.length))*lineHeight+2*padding);
  const required=headerHeight+heights.reduce((a,b)=>a+b,0);
- if(required>height)throw Error('Le condizioni superano lo spazio della tabella immagine a pagina singola. Nessun dato è stato salvato: per questo contenuto serve un modello con tabella su più pagine.');
+ if(required>height)throw Error('La tabella supera lo spazio del modello. Riduci le note o rimuovi una voce e riprova. Le modifiche restano aperte in questa scheda; il preventivo conserva l’ultima versione salvata. Per elenchi più lunghi, contatta il referente.');
  const extra=(height-required)/heights.length;
  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,width,height);
  function draw(cells,y,h,header=false){

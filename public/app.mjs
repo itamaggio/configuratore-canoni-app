@@ -3,7 +3,7 @@ import {createSavedDocument} from './document-action.mjs';
 import {prepareClientCase,refineClientCase} from './client-case.mjs';
 import {PRINT_FIELD,PRINT_XML_ID,renderNativeTable,saveWithNativePrint} from './native-print.mjs';
 const $=id=>document.getElementById(id);
-const state={quoteId:0,rows:[],baseline:'',dirty:false,busy:false,editing:null,formTouched:false,demo:false,field:null,printField:null,nativePrint:false,templates:[],config:null,domain:null,actionMode:false,actionKey:null,actionDocumentId:0,actionPending:false};
+const state={quoteId:0,rows:[],baseline:'',dirty:false,busy:false,editing:null,formTouched:false,removed:null,demo:false,field:null,printField:null,nativePrint:false,templates:[],config:null,domain:null,actionMode:false,actionKey:null,actionDocumentId:0,actionPending:false};
 const form=$('row-form');
 function status(message,kind=''){ $('status').textContent=message;$('status').className=`status ${kind}`;$('status').hidden=message==='Canoni caricati dal preventivo.'; }
 function el(tag,text,className){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(className)e.className=className;return e;}
@@ -15,15 +15,20 @@ function api(method,params={}){
 }
 function list(method,params,key){return new Promise((resolve,reject)=>{const out=[];BX24.callMethod(method,params,function next(r){if(r.error()){reject(new Error(String(r.error())));return;}const data=r.data();const rows=Array.isArray(data)?data:(data[key]||[]);out.push(...Object.values(rows));if(r.more())r.next();else resolve(out);});});}
 function recordId(value,key){return Number(value?.[key]?.id||value?.id||value);}
+function completedForm(){if(!state.formTouched&&state.editing===null)return true;status('Completa il canone con «Aggiungi canone» o «Aggiorna canone», oppure premi «Annulla» prima di cambiare voce.','error');form.elements.description.focus();return false;}
 function controls(){
  const pendingForm=state.formTouched||state.editing!==null;
  $('cancel-edit').hidden=!pendingForm;
+ $('form-guidance').hidden=!pendingForm;
+ $('form-guidance').textContent=state.editing===null?'Premi «Aggiungi canone» per inserire questa voce, poi «Salva canoni» per conservarla nel preventivo.':'Premi «Aggiorna canone» per applicare la modifica, poi «Salva canoni». Con «Annulla» conservi la voce precedente.';
+ $('undo-remove').hidden=!state.removed;$('undo-remove').disabled=state.busy;
  for(const id of ['prepare','create-test','import-template','open-quote','create-client-case','inspect-client','refine-client-case','prepare-native-print'])$(id).disabled=state.busy||state.demo;
  $('save').disabled=state.busy||!state.dirty||pendingForm;
  $('generate').disabled=state.busy||!state.quoteId||!$('template').value||state.demo;
  $('action-generate').disabled=state.busy||!$('action-template').value||!!state.actionDocumentId||state.actionPending;
  for(const id of ['document-type','template','action-template'])$(id).disabled=state.busy;
  for(const control of form.elements)control.disabled=state.busy;
+ for(const button of document.querySelectorAll('.row-actions button'))button.disabled=state.busy;
  $('saved').textContent=pendingForm?'Canone da completare':state.dirty?'Modifiche da salvare':(state.demo?'Anteprima locale':state.quoteId?'Modifiche salvate':'');
  $('saved').dataset.state=state.dirty||pendingForm?'dirty':state.demo?'preview':'saved';
  document.querySelector('.save-controls').hidden=!state.quoteId&&!state.demo;
@@ -41,16 +46,17 @@ function render(){
   for(const [label,value] of [['Riferimento',row.quantity],['Durata',row.duration],['Decorrenza',row.start]]){const cell=el('div');cell.append(el('dt',label),el('dd',value||'Non specificata'));details.append(cell);}a.append(details);
   if(row.notes)a.append(el('p',row.notes,'row-notes'));
   const actions=el('div',undefined,'row-actions'),edit=el('button','Modifica'),remove=el('button','Rimuovi','remove');
-  edit.type=remove.type='button';edit.addEventListener('click',()=>{if(state.busy)return;state.editing=index;for(const key of ROW_FIELDS)form.elements[key].value=row[key];state.formTouched=false;$('form-title').textContent='Modifica canone';$('add-row').textContent='Aggiorna canone';$('cancel-edit').hidden=false;controls();form.elements.description.focus();});
+  edit.type=remove.type='button';edit.addEventListener('click',()=>{if(state.busy||!completedForm())return;state.editing=index;for(const key of ROW_FIELDS)form.elements[key].value=row[key];state.formTouched=false;$('form-title').textContent='Modifica canone';$('add-row').textContent='Aggiorna canone';$('cancel-edit').hidden=false;controls();form.elements.description.focus();});
   edit.setAttribute('aria-label',`Modifica ${row.description}`);remove.setAttribute('aria-label',`Rimuovi ${row.description}`);
-  remove.addEventListener('click',()=>{if(state.busy)return;state.rows.splice(index,1);resetForm();changed();render();});actions.append(edit,remove);a.append(actions);$('rows').append(a);
+  remove.addEventListener('click',()=>{if(state.busy||!completedForm())return;state.removed={row:{...row},index};state.rows.splice(index,1);resetForm();changed();render();status('Canone rimosso dalla lista. Puoi annullare la rimozione prima di salvare.');});actions.append(edit,remove);a.append(actions);$('rows').append(a);
  });controls();resize();
 }
 function resize(){if(!state.demo&&window.BX24?.fitWindow)BX24.fitWindow();}
 function resetForm(){form.reset();state.editing=null;state.formTouched=false;$('form-title').textContent='Aggiungi un canone';$('add-row').textContent='Aggiungi canone';$('cancel-edit').hidden=true;controls();}
 form.addEventListener('input',()=>{state.formTouched=true;controls();});
-form.addEventListener('submit',event=>{event.preventDefault();try{const data=Object.fromEntries(new FormData(form));if(state.editing!==null)data.id=state.rows[state.editing].id;const row=normalizeRow(data);if(state.editing!==null)state.rows[state.editing]=row;else{if(state.rows.length>=30)throw new Error('Il prototipo ammette fino a 30 canoni.');state.rows.push(row);}resetForm();changed();render();status('Canone aggiornato. Salva per conservarlo nel preventivo.');}catch(error){status(error.message,'error');}});
-$('cancel-edit').addEventListener('click',resetForm);
+form.addEventListener('submit',event=>{event.preventDefault();try{const wasEditing=state.editing!==null;const data=Object.fromEntries(new FormData(form));if(wasEditing)data.id=state.rows[state.editing].id;const row=normalizeRow(data);if(wasEditing)state.rows[state.editing]=row;else{if(state.rows.length>=30)throw new Error('Puoi inserire al massimo 30 canoni.');state.rows.push(row);}resetForm();changed();render();status(`${wasEditing?'Canone aggiornato':'Canone aggiunto'}. Premi «Salva canoni» per conservarlo nel preventivo.`);}catch(error){status(error.message,'error');}});
+$('cancel-edit').addEventListener('click',()=>{resetForm();status(state.dirty?'Compilazione annullata. Restano modifiche da salvare.':'Compilazione annullata. I canoni salvati non sono cambiati.','success');});
+$('undo-remove').addEventListener('click',()=>{if(state.busy||!state.removed||!completedForm())return;if(state.rows.length>=30){status('La lista contiene già 30 canoni. Rimuovi una voce prima di ripristinare quella precedente.','error');return;}const removed=state.removed;state.rows.splice(Math.min(removed.index,state.rows.length),0,removed.row);state.removed=null;changed();render();status('Canone ripristinato. Premi «Salva canoni» per confermare la lista.');});
 async function findField(){
  const found=await api('crm.quote.userfield.list',{filter:{XML_ID:state.config.fieldXmlId}});
  state.field=Object.values(found||[]).find(x=>x.XML_ID===state.config.fieldXmlId)||null;
@@ -88,14 +94,18 @@ async function loadQuote(id){
  state.nativePrint=!!(state.printField&&quote[state.printField.FIELD_NAME]);
  $('native-print-notice').hidden=!state.nativePrint;
  const raw=quote[state.field.FIELD_NAME]||'';const s=decodeState(raw,quoteId);
- state.quoteId=quoteId;state.baseline=raw;state.rows=s.rows;state.dirty=false;
+ state.quoteId=quoteId;state.baseline=raw;state.rows=s.rows;state.dirty=false;state.removed=null;
  $('document-type').value=s.type;$('editor').hidden=state.actionMode;$('quote-id').value=String(quoteId);
  $('context').textContent=`Preventivo #${quoteId} · ${quote.TITLE||''}`;$('context').title=$('context').textContent;
- await refreshTemplates(s.templateId);resetForm();render();status('Canoni caricati dal preventivo.','success');
+ await refreshTemplates(s.templateId);
+ $('document-settings').hidden=state.nativePrint&&document.documentElement.dataset.admin!=='true';
+ if(state.nativePrint){const opts=await options();const nativeTemplate=state.templates.find(t=>Number(t.id)===Number(opts.canoniNativeTemplateId));$('native-print-notice').textContent=nativeTemplate?`Seleziona «${nativeTemplate.name}». Se Bitrix24 chiede il numero, scegli «Crea nuovo». I documenti già creati non si aggiornano.`:'Il referente deve completare la preparazione del modello prima della generazione.';}
+ resetForm();render();status('Canoni caricati dal preventivo.','success');
 }
 async function save(){
  if(state.formTouched||state.editing!==null)throw new Error('Completa «Aggiungi canone» o «Aggiorna canone» prima di salvare.');
- if(state.demo){localStorage.setItem('novotecna-canoni-demo',JSON.stringify(state.rows));state.dirty=false;render();status('Anteprima salvata solo in questo browser.');return;}
+ if(state.demo){localStorage.setItem('novotecna-canoni-demo',JSON.stringify(state.rows));state.dirty=false;state.removed=null;render();status('Anteprima salvata solo in questo browser.');return;}
+ status('Salvataggio dei canoni in corso…');
  const current=await api('crm.quote.get',{id:state.quoteId});
  if((current[state.field.FIELD_NAME]||'')!==state.baseline)throw new Error('I canoni sono stati modificati da un’altra sessione. Ricarica il preventivo prima di salvare.');
  const json=encodeState(state.quoteId,state.rows,{type:$('document-type').value,templateId:$('template').value});
@@ -103,7 +113,7 @@ async function save(){
  if(state.nativePrint){const image=renderNativeTable(state.rows);({quote:check}=await saveWithNativePrint({quoteId:state.quoteId,json,dataField:state.field.FIELD_NAME,imageField:state.printField.FIELD_NAME,base64:image.base64,call:api}));}
  else{await api('crm.quote.update',{id:state.quoteId,fields:{[state.field.FIELD_NAME]:json}});check=await api('crm.quote.get',{id:state.quoteId});}
  if(check[state.field.FIELD_NAME]!==json)throw new Error('La rilettura non conferma il salvataggio completo. Le modifiche restano aperte.');
- state.baseline=json;state.dirty=false;render();status('Canoni salvati e riletti dal CRM.','success');
+ state.baseline=json;state.dirty=false;state.removed=null;render();status('Canoni salvati. Ora puoi creare il documento dal menu Documento.','success');
 }
 async function createTest(){
  if(!state.field)await prepare();
@@ -193,8 +203,8 @@ $('action-generate').addEventListener('click',()=>run(()=>generateSavedAction(Nu
 $('inspect-client').addEventListener('click',()=>run(async()=>{
  const result={};
  const opts=await options();
- for(const [method,params] of [['crm.quote.get',{id:Number(opts.novotecnaClientQuoteId)||66}],['crm.quote.productrows.get',{id:Number(opts.novotecnaClientQuoteId)||66}],['crm.documentgenerator.template.getfields',{id:Number(opts.novotecnaClientTemplateId)||10,entityTypeId:7,entityId:Number(opts.novotecnaClientQuoteId)||66}]]){
-  try{result[method]=await api(method,params);}catch(error){result[method]={error:error.message};}
+ for(const [method,params] of [['crm.quote.get',{id:Number(opts.novotecnaClientQuoteId)||66}],['crm.quote.productrows.get',{id:Number(opts.novotecnaClientQuoteId)||66}],['crm.documentgenerator.template.get',{id:Number(opts.canoniNativeTemplateId)||12}],['crm.documentgenerator.template.getfields',{id:Number(opts.canoniNativeTemplateId)||12,entityTypeId:7,entityId:Number(opts.novotecnaClientQuoteId)||66}]]){
+  try{const data=await api(method,params);result[method]=method==='crm.documentgenerator.template.get'?{template:Object.fromEntries(Object.entries(data.template||data).filter(([key])=>['id','name','region','numeratorId','updateTime'].includes(key)))}:data;}catch(error){result[method]={error:error.message};}
  }
  const q=result['crm.quote.get'];if(q)result['crm.quote.get']=Object.fromEntries(Object.entries(q).filter(([key])=>!key.startsWith('UF_')||['UF_CRM_NOVOTECNA_CANONI','UF_CRM_QUOTE_1780561303442','UF_CRM_6A0C96C0B8AC3','UF_CRM_QUOTE_1780314824245','UF_CRM_6A0B2FAB1640A'].includes(key)));
  $('client-diagnostics').textContent=JSON.stringify(result,null,2);status('Campi del portale letti. Nessun dato CRM modificato.');resize();
@@ -243,6 +253,8 @@ async function init(){
  await new Promise(resolve=>BX24.init(resolve));state.domain=requirePortal(BX24.getDomain(),state.config.allowedPortals);
  $('context').textContent='Gestione dei servizi ricorrenti';
  const context=placementContext(BX24.placement.info());
+ // The main application is the configuration entry point; quote tabs keep the operator view.
+ if(!context.quoteId&&context.mode==='editor')document.documentElement.dataset.admin='true';
  if(context.mode==='document'){await run(()=>openDocumentAction(context.quoteId));}
  else{$('setup').hidden=false;if(context.quoteId){await run(()=>loadQuote(context.quoteId));}else{$('open-panel').hidden=false;status('');}}
  controls();resize();
