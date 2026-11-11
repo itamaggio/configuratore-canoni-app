@@ -3,21 +3,33 @@ from pathlib import Path
 from zipfile import ZipFile
 from copy import deepcopy
 from hashlib import sha256
+from argparse import ArgumentParser
 import json
 from lxml import etree as E
 
 root=Path(__file__).resolve().parents[1]
 source=root.parent/'Varie'/'Template Fotovoltaico Virtuale - R01 del 07_10_26  - B2C.docx'
 target=root/'public/templates/novotecna-b2c-canoni-test.docx'
-qa=root/'artifacts/client-case';qa.mkdir(parents=True,exist_ok=True)
+qa=root/'artifacts/client-case'
+parser=ArgumentParser();parser.add_argument('--source',type=Path,default=source);parser.add_argument('--target',type=Path,default=target);parser.add_argument('--qa-dir',type=Path,default=qa);parser.add_argument('--dynamic-product-units',action='store_true')
+args=parser.parse_args();source=args.source;target=args.target;qa=args.qa_dir;qa.mkdir(parents=True,exist_ok=True)
+profile='B2B' if 'b2b' in source.name.lower() else 'B2C'
 ns={'w':'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 W='{'+ns['w']+'}'
 with ZipFile(source) as z:
     parts={i.filename:z.read(i.filename) for i in z.infolist()}
     tree=E.fromstring(parts['word/document.xml'])
+    section_count=len(tree.findall('.//w:sectPr',ns))
     body=tree.find('w:body',ns)
     products=body.findall('w:tbl',ns)[1]
     assert '{ProductsProductDescription}' in ''.join(products.itertext())
+    if args.dynamic_product_units:
+        replacements=0
+        for text in products.findall('.//w:t',ns):
+            if text.text and 'kWp' in text.text:
+                replacements+=text.text.count('kWp')
+                text.text=text.text.replace('kWp','{ProductsProductMeasureName}')
+        assert replacements==3, 'Verificare la mappatura delle tre unità prodotto prima di modificare il modello.'
     original_children=[E.tostring(e,method='c14n') for e in body]
     def paragraph(text,bold=False):
         p=E.Element(W+'p');pp=E.SubElement(p,W+'pPr')
@@ -57,7 +69,7 @@ with ZipFile(source) as z:
     # All existing body blocks, sections, drawings and source placeholders are preserved.
     unchanged=[E.tostring(e,method='c14n') for e in body if not any(e is x for x in additions)]
     assert unchanged==original_children
-    assert len(tree.findall('.//w:sectPr',ns))==5
+    assert len(tree.findall('.//w:sectPr',ns))==section_count
     patched=E.tostring(tree,xml_declaration=True,encoding='UTF-8',standalone=True)
     with ZipFile(target,'w') as out:
         for info in z.infolist():out.writestr(info,patched if info.filename=='word/document.xml' else parts[info.filename])
@@ -65,13 +77,13 @@ with ZipFile(target) as z:
     assert all(z.read(k)==v for k,v in parts.items() if k!='word/document.xml')
 inventory=[{'path':k,'bytes':len(v),'sha256':sha256(v).hexdigest(),'policy':'edit' if k=='word/document.xml' else 'preserve'} for k,v in parts.items()]
 (qa/'package-inventory.json').write_text(json.dumps(inventory,indent=2),encoding='utf-8')
-(qa/'artifact.md').write_text(f'''# Copia del modello Novotecna B2C con canoni
+(qa/'artifact.md').write_text(f'''# Copia del modello Novotecna {profile} con canoni
 
 Reference: {source}
 SHA-256: {sha256(source.read_bytes()).hexdigest()}
-Autorità grafica: DOCX originale cliente; cinque sezioni preservate integralmente.
+Autorità grafica: DOCX originale cliente; {section_count} sezioni preservate integralmente.
 Intervento circoscritto: subito dopo la seconda tabella diretta del body (Prodotti), prima del paragrafo con cambio sezione e grafiche flottanti, inserire titolo, tabella canoni a cinque colonne e nota informativa. Gli otto attributi dei canoni sono tutti rappresentati; le condizioni occupano tre paragrafi distinti.
-Nessuna rimappatura dei segnaposto originali. Campi e prodotti di test saranno creati nel CRM per soddisfare i segnaposto esistenti. Condizioni contrattuali originali preservate; tariffa O&M di prova 97 euro coerente con il testo B2C.
+Rimappatura unità prodotti: {'tre unità kWp statiche sostituite con ProductsProductMeasureName' if args.dynamic_product_units else 'nessuna'}. Campi e prodotti di test saranno creati nel CRM per soddisfare i segnaposto esistenti. Condizioni contrattuali originali preservate; le tariffe di collaudo sono dati dimostrativi.
 Tutti gli altri blocchi body e tutti gli altri package part, incluse immagini, header, footer, relazioni, styles e numbering, restano invariati; confronto strutturale eseguito. Geometria, font e impaginazione originali preservati. Nuova tabella larga 10322 twip, Arial 9 pt, nessuna altezza fissa, intestazione ripetuta.
 Rendering locale non disponibile: il runtime non include LibreOffice. Verifica finale effettuata tramite generatore nativo Bitrix24 e PDF effettivo, reso con Poppler. Conteggio pagine da rilevare nel PDF generato.
 Output: {target}

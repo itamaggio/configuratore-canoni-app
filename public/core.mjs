@@ -10,17 +10,18 @@ export function normalizeAmount(raw){
 }
 export function normalizeRow(raw){
  const row={};
- for(const key of ROW_FIELDS){row[key]=String(raw[key]??'').trim();if(row[key].length>(key==='notes'?2000:300))throw new Error('Uno dei campi è troppo lungo.');}
+ for(const key of ROW_FIELDS){row[key]=String(raw[key]??'').trim();if(row[key].length>(['description','notes'].includes(key)?2000:300))throw new Error('Uno dei campi è troppo lungo.');}
  if(!row.description)throw new Error('Inserisci la descrizione del canone.');
  row.amount=normalizeAmount(row.amount);
  row.id=String(raw.id||crypto.randomUUID());
  return row;
 }
 function positiveId(value){const id=Number(value);if(!Number.isSafeInteger(id)||id<1)throw new Error('Identificativo non valido.');return id;}
-export function encodeState(quoteId,rows,{type='B2C',templateId=0}={}){
+export function encodeState(quoteId,rows,{type='B2C',templateId=0,wordLayout=0}={}){
  if(!['B2B','B2C'].includes(type))throw new Error('Tipologia documento non valida.');
  if(!Array.isArray(rows)||rows.length>30)throw new Error('Il prototipo ammette fino a 30 canoni.');
  const state={version:1,quoteId:positiveId(quoteId),revision:crypto.randomUUID(),type,templateId:Number(templateId)||0,rows:rows.map(normalizeRow)};
+ if(wordLayout===8)state.wordLayout=8;
  const json=JSON.stringify(state);if(new TextEncoder().encode(json).length>45000)throw new Error('I dati superano la dimensione prevista dal prototipo.');
  return json;
 }

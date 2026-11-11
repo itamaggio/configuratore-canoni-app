@@ -4,6 +4,8 @@ services:
     image: novotecna-canoni:0.1.0
     ports:
       - "127.0.0.1:8787:8080"
+    volumes:
+      - ./public:/app/public:ro
     read_only: true
     tmpfs:
       - /tmp

@@ -3,6 +3,12 @@ import assert from 'node:assert/strict';
 import {normalizeAmount, normalizeRow, encodeState, decodeState, documentPayload, requirePortal, placementContext} from '../public/core.mjs';
 
 const row={description:'O&M fotovoltaico',amount:'97,00',unit:'kWp',period:'Annuale',quantity:'10 kWp',duration:'Durata del contratto',start:'Dall’attivazione',notes:'Anticipato'};
+test('una descrizione estesa conserva testo e paragrafi fino a 2000 caratteri',()=>{
+ const description=('Servizio di esercizio e manutenzione del sistema fotovoltaico.\n').repeat(20).trim();
+ const result=decodeState(encodeState(67,[{...row,description}]),67);
+ assert.equal(result.rows[0].description,description);
+ assert.throws(()=>normalizeRow({...row,description:'x'.repeat(2001)}),/lungo/);
+});
 
 test('B2B e B2C conservano gli stessi canoni informativi e tutti gli attributi',()=>{
  const payloads=[];
